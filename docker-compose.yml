@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost # 중요: 호스트 머신의 IP 또는 localhost로 설정
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "insurance-application-approved:1:1" # 토픽 생성 (이름:파티션 수:복제 계수)
+    depends_on:
+      - zookeeper
