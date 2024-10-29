@@ -1,10 +1,7 @@
 package com.lhs.insurance.domain.entity;
 
 import com.lhs.insurance.domain.entity.common.BaseTimeEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,4 +19,9 @@ public class InsuredPerson extends BaseTimeEntity {
     private String name;
     private Long age;
     private Long jobCode; // 직업군 코드
+
+    // 보험 상품 insured offer
+    @ManyToOne
+    @JoinColumn(name = "insurance_offer_id")
+    private InsuranceOffer insuranceOffer;
 }

@@ -31,6 +31,7 @@ public class InsuranceService {
     @Transactional
     public InsuranceResponseDto createInsuranceOffer(InsuranceCreateRequestDto requestDto) {
         // 상품, 계약자, 피보험자, 설계사 정보 조회
+        // TODO: restcontrolleradvice 사용하도록 리팩토링 필요
         InsuranceProduct product = insuranceProductRepository.findById(requestDto.getProductId())
                 .orElseThrow(() -> new EntityNotFoundException("Product not found"));
         Applicant applicant = applicantRepository.findById(requestDto.getApplicantId())

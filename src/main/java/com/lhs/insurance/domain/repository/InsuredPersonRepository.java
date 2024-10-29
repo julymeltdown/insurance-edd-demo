@@ -1,3 +1,4 @@
+// InsuredPersonRepository.java
 package com.lhs.insurance.domain.repository;
 
 import com.lhs.insurance.domain.entity.InsuranceOffer;
@@ -9,5 +10,5 @@ import java.util.Optional;
 
 @Repository
 public interface InsuredPersonRepository extends JpaRepository<InsuredPerson, Long> {
-    Optional<InsuredPerson> findByInsurance(InsuranceOffer insuranceOffer);
+    Optional<InsuredPerson> findByInsuranceOffer(InsuranceOffer insuranceOffer); // 수정
 }
