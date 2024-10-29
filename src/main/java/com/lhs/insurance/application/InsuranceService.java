@@ -91,6 +91,7 @@ public class InsuranceService {
         return convertToDto(insuranceOffer);
     }
 
+
     private InsuranceResponseDto convertToDto(InsuranceOffer insuranceOffer) {
         return InsuranceResponseDto.builder()
                 .id(insuranceOffer.getId())
@@ -104,6 +105,7 @@ public class InsuranceService {
                 .commissionAmount(insuranceOffer.getCommission() != null ? insuranceOffer.getCommission().getAmount() : null) // 수수료 금액 추가
                 .build();
     }
+
 
     @Transactional(readOnly = true)
     public InsuranceResponseDto retrieveInsuranceOffer(Long insuranceOfferId) {
