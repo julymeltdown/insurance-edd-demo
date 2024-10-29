@@ -18,9 +18,13 @@ public class InsuranceCommission extends BaseTimeEntity {
     private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "insurance_id")
-    private InsuranceOffer insurance;  // 관련 보험
+    @JoinColumn(name = "insurance_offer_id") //JoinColumn 추가
+    private InsuranceOffer insuranceOffer;   // 관련 보험
+
+    //설계사 정보 추가
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "agent_id")
+    private InsuranceAgent agent; // 설계사
 
     private Long amount; // 커미션 금액
-
 }

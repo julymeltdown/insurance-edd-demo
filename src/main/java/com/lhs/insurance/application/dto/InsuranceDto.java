@@ -1,11 +1,18 @@
 package com.lhs.insurance.application.dto;
 
-import lombok.Data;
+import com.lhs.insurance.domain.entity.InsuranceStatus;
+import lombok.*;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class InsuranceDto {
     private Long insuranceId;
-    private String productName;  // 보험 상품 이름
+    private Long productId;
+    private String productName;
     private Long mainContractPremium;
-    private Long commission;
+    private String applicantName;          // 계약자 이름
+    private String insuredPersonName;      // 피보험자 이름
+    private String insuranceAgentName;     //설계사 이름
 }
