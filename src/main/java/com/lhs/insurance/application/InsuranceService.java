@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 @RequiredArgsConstructor
-public class InsuranceApplicationService {
+public class InsuranceService {
 
     private final InsuranceOfferRepository insuranceOfferRepository;
     private final InsuranceCommissionRepository insuranceCommissionRepository;

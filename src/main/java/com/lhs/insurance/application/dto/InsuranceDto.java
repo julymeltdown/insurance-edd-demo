@@ -1,6 +1,5 @@
 package com.lhs.insurance.application.dto;
 
-import com.lhs.insurance.domain.entity.InsuranceStatus;
 import lombok.*;
 
 @Data
