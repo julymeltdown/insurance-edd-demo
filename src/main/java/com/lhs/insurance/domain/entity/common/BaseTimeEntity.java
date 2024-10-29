@@ -1,4 +1,4 @@
-package com.lhs.insurance.domain.common;
+package com.lhs.insurance.domain.entity.common;
 
 import lombok.Getter;
 import org.springframework.data.annotation.CreatedDate;

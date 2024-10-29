@@ -1,6 +1,6 @@
-package com.lhs.insurance.domain;
+package com.lhs.insurance.domain.entity;
 
-import com.lhs.insurance.domain.common.BaseTimeEntity;
+import com.lhs.insurance.domain.entity.common.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
