@@ -10,7 +10,7 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: update  # Or create-drop if you want the schema to be recreated each time
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
@@ -19,4 +19,6 @@ spring:
       enabled: true
   sql:
     init:
-      mode: never  # 스크립트 실행하지 않음
+      mode: always
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
