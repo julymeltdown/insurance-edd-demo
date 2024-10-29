@@ -1,133 +1,114 @@
 package com.lhs.insurance.application;
 
-import com.lhs.insurance.application.dto.InsuranceDto;
 import com.lhs.insurance.domain.entity.*;
-import com.lhs.insurance.domain.repository.InsuranceAgentRepository; // 추가
-import com.lhs.insurance.domain.repository.InsuranceCommissionRepository;
-import com.lhs.insurance.domain.repository.InsuranceOfferRepository;
-import com.lhs.insurance.domain.repository.InsuranceProductRepository;
+import com.lhs.insurance.domain.repository.*;
 import com.lhs.insurance.event.InsuranceApplicationAcceptedEvent;
 import com.lhs.insurance.infrastructure.InsuranceCommissionPolicy;
 import com.lhs.insurance.infrastructure.KafkaEventPublisher;
+import com.lhs.insurance.presentation.request.InsuranceAcceptRequestDto;
+import com.lhs.insurance.presentation.request.InsuranceCreateRequestDto;
+import com.lhs.insurance.presentation.response.InsuranceResponseDto;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class InsuranceService {
 
     private final InsuranceOfferRepository insuranceOfferRepository;
-    private final InsuranceCommissionRepository insuranceCommissionRepository;
     private final InsuranceProductRepository insuranceProductRepository;
-    private final InsuranceAgentRepository insuranceAgentRepository; // 추가
-    private final InsuranceCommissionPolicy insuranceCommissionPolicy;
+    private final ApplicantRepository applicantRepository;
+    private final InsuredPersonRepository insuredPersonRepository;
+    private final InsuranceAgentRepository insuranceAgentRepository;
+    private final InsuranceCommissionRepository insuranceCommissionRepository;
+    private final InsuranceCommissionPolicy insuranceCommissionPolicy; // 수수료 계산 정책
     private final KafkaEventPublisher kafkaEventPublisher;
 
-    // Create
-    public Long createInsuranceApplication(InsuranceDto insuranceDto) {
-        InsuranceProduct product = insuranceProductRepository.findById(insuranceDto.getProductId())
-                .orElseThrow(() -> new IllegalArgumentException("Insurance product not found"));
 
+    @Transactional
+    public InsuranceResponseDto createInsuranceOffer(InsuranceCreateRequestDto requestDto) {
+        // 상품, 계약자, 피보험자, 설계사 정보 조회
+        InsuranceProduct product = insuranceProductRepository.findById(requestDto.getProductId())
+                .orElseThrow(() -> new EntityNotFoundException("Product not found"));
+        Applicant applicant = applicantRepository.findById(requestDto.getApplicantId())
+                .orElseThrow(() -> new EntityNotFoundException("Applicant not found"));
+        InsuredPerson insuredPerson = insuredPersonRepository.findById(requestDto.getInsuredPersonId())
+                .orElseThrow(() -> new EntityNotFoundException("Insured person not found"));
+        InsuranceAgent agent = insuranceAgentRepository.findById(requestDto.getAgentId())
+                .orElseThrow(() -> new EntityNotFoundException("Agent not found"));
+
+
+        // InsuranceOffer 생성 및 저장 (상태: APPLIED)
         InsuranceOffer insuranceOffer = InsuranceOffer.builder()
                 .product(product)
-                .mainContractPremium(insuranceDto.getMainContractPremium())
+                .mainContractPremium(requestDto.getMainContractPremium())
                 .status(InsuranceStatus.APPLIED)
+                .applicant(applicant)
+                .insuredPerson(insuredPerson)
                 .build();
 
-        return insuranceOfferRepository.save(insuranceOffer).getId();
-    }
 
-    // Read
-    public InsuranceDto getInsuranceApplication(Long insuranceId) {
-        InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(insuranceId)
-                .orElseThrow(() -> new IllegalArgumentException("Insurance not found"));
+        insuranceOfferRepository.save(insuranceOffer);
 
         return convertToDto(insuranceOffer);
     }
 
-    // Update
-    public void updateInsuranceApplication(Long insuranceId, InsuranceDto insuranceDto) {
-        InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(insuranceId)
-                .orElseThrow(() -> new IllegalArgumentException("Insurance not found"));
 
-        InsuranceProduct product = insuranceProductRepository.findById(insuranceDto.getProductId())
-                .orElseThrow(() -> new IllegalArgumentException("Insurance product not found"));
-        insuranceOffer.setProduct(product);
-        insuranceOffer.setMainContractPremium(insuranceDto.getMainContractPremium());
+    @Transactional
+    public InsuranceResponseDto acceptInsuranceOffer(InsuranceAcceptRequestDto requestDto) {
+        InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(requestDto.getInsuranceOfferId())
+                .orElseThrow(() -> new EntityNotFoundException("Insurance offer not found"));
+
+        // 상태 변경 (ACCEPTED)
+        insuranceOffer.setStatus(InsuranceStatus.ACCEPTED);
+
+        // 수수료 계산 및 저장
+        long commissionAmount = insuranceCommissionPolicy.calculateCommission(insuranceOffer.getMainContractPremium());
+        InsuranceCommission commission = InsuranceCommission.builder()
+                .insuranceOffer(insuranceOffer)
+                .agent(insuranceOffer.getAgent()) // agent 정보 설정
+                .amount(commissionAmount)
+                .build();
+        insuranceCommissionRepository.save(commission);
+        insuranceOffer.setCommission(commission); // 양방향 관계 설정
 
 
-        insuranceOfferRepository.save(insuranceOffer);
+        // 이벤트 발행
+        InsuranceApplicationAcceptedEvent event = new InsuranceApplicationAcceptedEvent(
+                insuranceOffer.getId(),
+                commission.getAmount(),
+                insuranceOffer.getProduct().getName(),
+                insuranceOffer.getAgent().getName(),
+                insuranceOffer.getApplicant().getName(),
+                insuranceOffer.getInsuredPerson().getName()
+        );
+        kafkaEventPublisher.publish(event);
+
+
+        return convertToDto(insuranceOffer);
     }
 
-    // Delete
-    public void deleteInsuranceApplication(Long insuranceId) {
-        insuranceOfferRepository.deleteById(insuranceId);
-    }
-
-    // Helper method to convert entity to DTO
-    private InsuranceDto convertToDto(InsuranceOffer insuranceOffer) {
-        Long commission = 0L;
-        if (insuranceOffer.getStatus() == InsuranceStatus.ACCEPTED) {
-            InsuranceCommission insuranceCommission = insuranceCommissionRepository.findByInsurance(insuranceOffer);
-            if (insuranceCommission != null) {
-                commission = insuranceCommission.getAmount();
-            }
-        }
-
-        // 설계사, 계약자, 피보험자 이름 가져오는 부분 추가 (예시 - 실제 로직은 다를 수 있음)
-        String applicantName = "계약자 이름"; // TODO: 실제 계약자 이름 가져오는 로직 구현
-        String insuredPersonName = "피보험자 이름"; // TODO: 실제 피보험자 이름 가져오는 로직 구현
-        String insuranceAgentName = insuranceOffer.getStatus() == InsuranceStatus.ACCEPTED ?
-                insuranceCommissionRepository.findByInsurance(insuranceOffer) : "설계사 이름";
-
-
-        return InsuranceDto.builder()
-                .insuranceId(insuranceOffer.getId())
+    private InsuranceResponseDto convertToDto(InsuranceOffer insuranceOffer) {
+        return InsuranceResponseDto.builder()
+                .id(insuranceOffer.getId())
                 .productId(insuranceOffer.getProduct().getId())
                 .productName(insuranceOffer.getProduct().getName())
                 .mainContractPremium(insuranceOffer.getMainContractPremium())
-                .commission(commission)
-                .applicantName(applicantName)
-                .insuredPersonName(insuredPersonName)
-                .insuranceAgentName(insuranceAgentName)
                 .status(insuranceOffer.getStatus())
+                .applicantName(insuranceOffer.getApplicant().getName())
+                .insuredPersonName(insuranceOffer.getInsuredPerson().getName())
+                .insuranceAgentName(insuranceOffer.getAgent().getName())
+                .commissionAmount(insuranceOffer.getCommission() != null ? insuranceOffer.getCommission().getAmount() : null) // 수수료 금액 추가
                 .build();
     }
 
-    // 기존 acceptInsuranceApplication 메서드
-    public InsuranceDto acceptInsuranceApplication(Long insuranceId, Long agentId) { // 설계사 ID 추가
-        InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(insuranceId)
-                .orElseThrow(() -> new IllegalArgumentException("Insurance not found"));
-
-        insuranceOffer.setStatus(InsuranceStatus.ACCEPTED);
-
-        long commission = insuranceCommissionPolicy.calculateCommission(insuranceOffer.getMainContractPremium());
-
-        InsuranceAgent agent = insuranceAgentRepository.findById(agentId)
-                .orElseThrow(() -> new IllegalArgumentException("Agent not found"));
-
-        InsuranceCommission insuranceCommission = InsuranceCommission.builder()
-                .insuranceOffer(insuranceOffer)
-                .agent(agent) // 설계사 설정
-                .amount(commission)
-                .build();
-        insuranceCommissionRepository.save(insuranceCommission);
-
-        String applicantName = "계약자 이름"; // TODO: 실제 계약자 이름 가져오는 로직 구현
-        String insuredPersonName = "피보험자 이름"; // TODO: 실제 피보험자 이름 가져오는 로직 구현
-        String insuranceAgentName = agent.getName(); // 설계사 이름
-
-
-        kafkaEventPublisher.publish(new InsuranceApplicationAcceptedEvent(
-                insuranceId,
-                commission,
-                insuranceOffer.getProduct().getName(),
-                insuranceAgentName,
-                applicantName,
-                insuredPersonName
-        ));
+    @Transactional(readOnly = true)
+    public InsuranceResponseDto retrieveInsuranceOffer(Long insuranceOfferId) {
+        InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(insuranceOfferId)
+                .orElseThrow(() -> new EntityNotFoundException("Insurance offer not found"));
 
         return convertToDto(insuranceOffer);
     }
