@@ -41,15 +41,24 @@ public class InsuranceService {
         InsuranceAgent agent = insuranceAgentRepository.findById(requestDto.getAgentId())
                 .orElseThrow(() -> new EntityNotFoundException("Agent not found"));
 
+        long commissionAmount = insuranceCommissionPolicy.calculateCommission(requestDto.getMainContractPremium());
 
-        // InsuranceOffer 생성 및 저장 (상태: APPLIED)
+        InsuranceCommission commission = InsuranceCommission.builder()
+                .agent(agent)
+                .amount(commissionAmount)
+                .build();
+
         InsuranceOffer insuranceOffer = InsuranceOffer.builder()
                 .product(product)
                 .mainContractPremium(requestDto.getMainContractPremium())
                 .status(InsuranceStatus.APPLIED)
                 .applicant(applicant)
                 .insuredPerson(insuredPerson)
+                .agent(agent)
+                .commission(commission)
                 .build();
+
+        commission.setInsuranceOffer(insuranceOffer);
 
 
         insuranceOfferRepository.save(insuranceOffer);
