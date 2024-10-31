@@ -26,7 +26,7 @@ public class InsuranceController {
 
     @PostMapping("/{insuranceOfferId}/accept") // 승인 요청
     public ResponseEntity<InsuranceResponseDto> acceptInsuranceOffer(
-            @PathVariable Long insuranceOfferId,
+            @PathVariable(name = "insuranceOfferId") Long insuranceOfferId,
             @RequestBody InsuranceAcceptRequestDto requestDto
     ) {
         requestDto.setInsuranceOfferId(insuranceOfferId); // 경로 변수 설정
@@ -37,7 +37,7 @@ public class InsuranceController {
 
     @GetMapping("/{insuranceOfferId}")
     public ResponseEntity<InsuranceResponseDto> retrieveInsuranceOffer(
-            @PathVariable Long insuranceOfferId
+            @PathVariable(name = "insuranceOfferId") Long insuranceOfferId
     ) {
         InsuranceResponseDto responseDto = insuranceService.retrieveInsuranceOffer(insuranceOfferId);
         return new ResponseEntity<>(responseDto, HttpStatus.OK);
