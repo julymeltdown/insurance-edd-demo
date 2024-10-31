@@ -24,12 +24,10 @@ public class InsuranceController {
         return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
     }
 
-    @PostMapping("/{insuranceOfferId}/accept") // 승인 요청
+    @PostMapping("/accept") // 승인 요청
     public ResponseEntity<InsuranceResponseDto> acceptInsuranceOffer(
-            @PathVariable(name = "insuranceOfferId") Long insuranceOfferId,
             @RequestBody InsuranceAcceptRequestDto requestDto
     ) {
-        requestDto.setInsuranceOfferId(insuranceOfferId); // 경로 변수 설정
         InsuranceResponseDto responseDto = insuranceService.acceptInsuranceOffer(requestDto);
 
         return new ResponseEntity<>(responseDto, HttpStatus.OK);
