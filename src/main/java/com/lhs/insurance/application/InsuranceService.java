@@ -3,16 +3,15 @@ package com.lhs.insurance.application;
 import com.lhs.insurance.domain.entity.*;
 import com.lhs.insurance.domain.repository.*;
 import com.lhs.insurance.event.InsuranceApplicationAcceptedEvent;
+import com.lhs.insurance.exception.*;
 import com.lhs.insurance.infrastructure.InsuranceCommissionPolicy;
 import com.lhs.insurance.infrastructure.KafkaEventPublisher;
 import com.lhs.insurance.presentation.request.InsuranceAcceptRequestDto;
 import com.lhs.insurance.presentation.request.InsuranceCreateRequestDto;
 import com.lhs.insurance.presentation.response.InsuranceResponseDto;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 
 @Service
 @RequiredArgsConstructor
@@ -24,85 +23,92 @@ public class InsuranceService {
     private final InsuredPersonRepository insuredPersonRepository;
     private final InsuranceAgentRepository insuranceAgentRepository;
     private final InsuranceCommissionRepository insuranceCommissionRepository;
-    private final InsuranceCommissionPolicy insuranceCommissionPolicy; // 수수료 계산 정책
+    private final InsuranceCommissionPolicy insuranceCommissionPolicy;
     private final KafkaEventPublisher kafkaEventPublisher;
-
 
     @Transactional
     public InsuranceResponseDto createInsuranceOffer(InsuranceCreateRequestDto requestDto) {
-        // 상품, 계약자, 피보험자, 설계사 정보 조회
-        // TODO: restcontrolleradvice 사용하도록 리팩토링 필요
-        InsuranceProduct product = insuranceProductRepository.findById(requestDto.getProductId())
-                .orElseThrow(() -> new EntityNotFoundException("Product not found"));
-        Applicant applicant = applicantRepository.findById(requestDto.getApplicantId())
-                .orElseThrow(() -> new EntityNotFoundException("Applicant not found"));
-        InsuredPerson insuredPerson = insuredPersonRepository.findById(requestDto.getInsuredPersonId())
-                .orElseThrow(() -> new EntityNotFoundException("Insured person not found"));
-        InsuranceAgent agent = insuranceAgentRepository.findById(requestDto.getAgentId())
-                .orElseThrow(() -> new EntityNotFoundException("Agent not found"));
+        InsuranceOffer insuranceOffer = createInsuranceOfferEntity(requestDto);
+        insuranceOfferRepository.save(insuranceOffer);
+        return convertToDto(insuranceOffer);
+    }
+
+    private InsuranceOffer createInsuranceOfferEntity(InsuranceCreateRequestDto requestDto) {
+        Entities entities = fetchRelatedEntities(requestDto);
 
         long commissionAmount = insuranceCommissionPolicy.calculateCommission(requestDto.getMainContractPremium());
 
         InsuranceCommission commission = InsuranceCommission.builder()
-                .agent(agent)
+                .agent(entities.agent)
                 .amount(commissionAmount)
                 .build();
 
         InsuranceOffer insuranceOffer = InsuranceOffer.builder()
-                .product(product)
+                .product(entities.product)
                 .mainContractPremium(requestDto.getMainContractPremium())
                 .status(InsuranceStatus.APPLIED)
-                .applicant(applicant)
-                .insuredPerson(insuredPerson)
-                .agent(agent)
+                .applicant(entities.applicant)
+                .insuredPerson(entities.insuredPerson)
+                .agent(entities.agent)
                 .commission(commission)
                 .build();
 
         commission.setInsuranceOffer(insuranceOffer);
-
-
-        insuranceOfferRepository.save(insuranceOffer);
-
-        return convertToDto(insuranceOffer);
+        return insuranceOffer;
     }
-
 
     @Transactional
     public InsuranceResponseDto acceptInsuranceOffer(InsuranceAcceptRequestDto requestDto) {
         InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(requestDto.getInsuranceOfferId())
-                .orElseThrow(() -> new EntityNotFoundException("Insurance offer not found"));
+                .orElseThrow(() -> new InsuranceOfferNotFoundException("Insurance offer not found with ID: " + requestDto.getInsuranceOfferId()));
 
-        // 상태 변경 (ACCEPTED)
         insuranceOffer.setStatus(InsuranceStatus.ACCEPTED);
 
-        // 수수료 계산 및 저장
         long commissionAmount = insuranceCommissionPolicy.calculateCommission(insuranceOffer.getMainContractPremium());
-        InsuranceCommission commission = InsuranceCommission.builder()
-                .insuranceOffer(insuranceOffer)
-                .agent(insuranceOffer.getAgent()) // agent 정보 설정
-                .amount(commissionAmount)
-                .build();
-        insuranceCommissionRepository.save(commission);
-        insuranceOffer.setCommission(commission); // 양방향 관계 설정
 
+        if (insuranceOffer.getCommission() == null) {
+            InsuranceCommission commission = InsuranceCommission.builder()
+                    .insuranceOffer(insuranceOffer)
+                    .agent(insuranceOffer.getAgent())
+                    .amount(commissionAmount)
+                    .build();
+            insuranceCommissionRepository.save(commission);
+            insuranceOffer.setCommission(commission);
+        } else {
+            insuranceOffer.getCommission().setAmount(commissionAmount);
+        }
 
-        // 이벤트 발행
-        InsuranceApplicationAcceptedEvent event = new InsuranceApplicationAcceptedEvent(
-                insuranceOffer.getId(),
-                commission.getAmount(),
-                insuranceOffer.getProduct().getName(),
-                insuranceOffer.getAgent().getName(),
-                insuranceOffer.getApplicant().getName(),
-                insuranceOffer.getInsuredPerson().getName()
-        );
-        kafkaEventPublisher.publish(event);
-
+        publishInsuranceAcceptedEvent(insuranceOffer);
 
         return convertToDto(insuranceOffer);
     }
 
 
+    private void publishInsuranceAcceptedEvent(InsuranceOffer insuranceOffer) {
+        try {
+            InsuranceApplicationAcceptedEvent event = new InsuranceApplicationAcceptedEvent(
+                    insuranceOffer.getId(),
+                    insuranceOffer.getCommission().getAmount(),
+                    insuranceOffer.getProduct().getName(),
+                    insuranceOffer.getAgent().getName(),
+                    insuranceOffer.getApplicant().getName(),
+                    insuranceOffer.getInsuredPerson().getName()
+            );
+            kafkaEventPublisher.publish(event);
+        } catch (KafkaPublishException e) {
+            // TODO: 메시지 발행 실패 로직
+
+            throw e;
+        }
+
+
+    }
+
+
     private InsuranceResponseDto convertToDto(InsuranceOffer insuranceOffer) {
+        Long commissionAmount = (insuranceOffer.getCommission() != null) ?
+                insuranceOffer.getCommission().getAmount() : null;
+
         return InsuranceResponseDto.builder()
                 .id(insuranceOffer.getId())
                 .productId(insuranceOffer.getProduct().getId())
@@ -112,7 +118,7 @@ public class InsuranceService {
                 .applicantName(insuranceOffer.getApplicant().getName())
                 .insuredPersonName(insuranceOffer.getInsuredPerson().getName())
                 .insuranceAgentName(insuranceOffer.getAgent().getName())
-                .commissionAmount(insuranceOffer.getCommission() != null ? insuranceOffer.getCommission().getAmount() : null) // 수수료 금액 추가
+                .commissionAmount(commissionAmount)
                 .build();
     }
 
@@ -120,8 +126,24 @@ public class InsuranceService {
     @Transactional(readOnly = true)
     public InsuranceResponseDto retrieveInsuranceOffer(Long insuranceOfferId) {
         InsuranceOffer insuranceOffer = insuranceOfferRepository.findById(insuranceOfferId)
-                .orElseThrow(() -> new EntityNotFoundException("Insurance offer not found"));
+                .orElseThrow(() -> new InsuranceOfferNotFoundException("Insurance offer not found with ID: " + insuranceOfferId));
 
         return convertToDto(insuranceOffer);
     }
+
+    private Entities fetchRelatedEntities(InsuranceCreateRequestDto requestDto) {
+        InsuranceProduct product = insuranceProductRepository.findById(requestDto.getProductId())
+                .orElseThrow(() -> new ProductNotFoundException("Product not found with ID: " + requestDto.getProductId()));
+        Applicant applicant = applicantRepository.findById(requestDto.getApplicantId())
+                .orElseThrow(() -> new ApplicantNotFoundException("Applicant not found with ID: " + requestDto.getApplicantId()));
+        InsuredPerson insuredPerson = insuredPersonRepository.findById(requestDto.getInsuredPersonId())
+                .orElseThrow(() -> new InsuredPersonNotFoundException("Insured person not found with ID:" + requestDto.getInsuredPersonId()));
+        InsuranceAgent agent = insuranceAgentRepository.findById(requestDto.getAgentId())
+                .orElseThrow(() -> new InsuranceAgentNotFoundException("Agent not found with ID: " + requestDto.getAgentId()));
+
+        return new Entities(product, applicant, insuredPerson, agent);
+    }
+
+    private record Entities(InsuranceProduct product, Applicant applicant,
+                            InsuredPerson insuredPerson, InsuranceAgent agent) {}
 }
