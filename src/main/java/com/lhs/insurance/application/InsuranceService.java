@@ -5,7 +5,6 @@ import com.lhs.insurance.domain.repository.*;
 import com.lhs.insurance.event.InsuranceApplicationAcceptedEvent;
 import com.lhs.insurance.exception.*;
 import com.lhs.insurance.infrastructure.InsuranceCommissionPolicy;
-import com.lhs.insurance.infrastructure.KafkaEventPublisher;
 import com.lhs.insurance.presentation.request.InsuranceAcceptRequestDto;
 import com.lhs.insurance.presentation.request.InsuranceCreateRequestDto;
 import com.lhs.insurance.presentation.response.InsuranceResponseDto;
