@@ -25,7 +25,7 @@ public class InsuranceOffer extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private InsuranceStatus status;
 
-    @OneToOne(mappedBy = "insuranceOffer", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "insuranceOffer", cascade = CascadeType.ALL, orphanRemoval = true)
     private InsuranceCommission commission;
 
     @OneToOne(fetch = FetchType.LAZY)

@@ -63,21 +63,6 @@ public class InsuranceService {
                 .orElseThrow(() -> new InsuranceOfferNotFoundException("Insurance offer not found with ID: " + requestDto.getInsuranceOfferId()));
 
         insuranceOffer.setStatus(InsuranceStatus.ACCEPTED);
-
-        long commissionAmount = insuranceCommissionPolicy.calculateCommission(insuranceOffer.getMainContractPremium());
-
-        if (insuranceOffer.getCommission() == null) {
-            InsuranceCommission commission = InsuranceCommission.builder()
-                    .insuranceOffer(insuranceOffer)
-                    .agent(insuranceOffer.getAgent())
-                    .amount(commissionAmount)
-                    .build();
-            insuranceCommissionRepository.save(commission);
-            insuranceOffer.setCommission(commission);
-        } else {
-            insuranceOffer.getCommission().setAmount(commissionAmount);
-        }
-
         publishInsuranceAcceptedEvent(insuranceOffer);
 
         return convertToDto(insuranceOffer);
