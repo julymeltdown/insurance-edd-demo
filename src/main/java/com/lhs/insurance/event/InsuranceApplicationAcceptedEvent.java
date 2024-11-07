@@ -1,15 +1,16 @@
 package com.lhs.insurance.event;
 
+import com.lhs.insurance.domain.entity.InsuranceAgent;
+import com.lhs.insurance.domain.entity.InsuranceOffer;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
-@Data
+@Getter
+@RequiredArgsConstructor
 @AllArgsConstructor
-public class InsuranceApplicationAcceptedEvent {
-    private Long insuranceId;
-    private long commission;
-    private String productName;
-    private String insuranceAgentName; // 설계사 이름
-    private String applicantName; // 계약자 이름
-    private String insuredPersonName; // 피보험자 이름
+public class InsuranceApplicationAcceptedEvent{
+    InsuranceOffer insuranceOffer;
+    InsuranceAgent insuranceAgent;
+    long commission;
 }

@@ -10,6 +10,7 @@ import com.lhs.insurance.presentation.request.InsuranceAcceptRequestDto;
 import com.lhs.insurance.presentation.request.InsuranceCreateRequestDto;
 import com.lhs.insurance.presentation.response.InsuranceResponseDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +25,7 @@ public class InsuranceService {
     private final InsuranceAgentRepository insuranceAgentRepository;
     private final InsuranceCommissionRepository insuranceCommissionRepository;
     private final InsuranceCommissionPolicy insuranceCommissionPolicy;
-    private final KafkaEventPublisher kafkaEventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Transactional
     public InsuranceResponseDto createInsuranceOffer(InsuranceCreateRequestDto requestDto) {
@@ -85,23 +86,10 @@ public class InsuranceService {
 
 
     private void publishInsuranceAcceptedEvent(InsuranceOffer insuranceOffer) {
-        try {
-            InsuranceApplicationAcceptedEvent event = new InsuranceApplicationAcceptedEvent(
-                    insuranceOffer.getId(),
-                    insuranceOffer.getCommission().getAmount(),
-                    insuranceOffer.getProduct().getName(),
-                    insuranceOffer.getAgent().getName(),
-                    insuranceOffer.getApplicant().getName(),
-                    insuranceOffer.getInsuredPerson().getName()
-            );
-            kafkaEventPublisher.publish(event);
-        } catch (KafkaPublishException e) {
-            // TODO: 메시지 발행 실패 로직
-
-            throw e;
-        }
-
-
+        InsuranceApplicationAcceptedEvent event = new InsuranceApplicationAcceptedEvent(
+                insuranceOffer, insuranceOffer.getAgent(), insuranceOffer.getCommission().getAmount()
+        );
+        applicationEventPublisher.publishEvent(event);
     }
 
 
@@ -145,5 +133,6 @@ public class InsuranceService {
     }
 
     private record Entities(InsuranceProduct product, Applicant applicant,
-                            InsuredPerson insuredPerson, InsuranceAgent agent) {}
+                            InsuredPerson insuredPerson, InsuranceAgent agent) {
+    }
 }
