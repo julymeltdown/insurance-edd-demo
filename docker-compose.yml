@@ -23,7 +23,9 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_CREATE_TOPICS: "insurance-application-approved:1:1" # Topic creation
+      KAFKA_CREATE_TOPICS: |
+        health-insurance-update:1:1,
+        insurance-commission-payment:1:1
       KAFKA_MESSAGE_MAX_BYTES: 2097152
     depends_on:
       - zookeeper
